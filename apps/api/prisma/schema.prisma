@@ -1,0 +1,429 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipOrigin {
+  ROKAD
+  EXTERNAL
+}
+
+enum AccountStatus {
+  active
+  suspended
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum CategoryKind {
+  TABLE
+  ELECTRONIC
+}
+
+enum Audience {
+  boys
+  girls
+  mixed
+}
+
+enum PayType {
+  full
+  deposit
+  venue
+}
+
+enum EventStatus {
+  draft
+  open
+  full
+  ongoing
+  completed
+  cancelled
+}
+
+enum ReservationStatus {
+  pending
+  confirmed
+  cancelled
+  attended
+  no_show
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  partially_paid
+  venue_due
+  failed
+  refunded
+  partially_refunded
+}
+
+model User {
+  id               Int               @id @default(autoincrement())
+  username         String            @unique
+  email            String            @unique
+  phone            String            @default("")
+  password         String
+  displayName      String
+  bio              String            @default("")
+  avatar           String            @default("")
+  gender           String            @default("")
+  role             UserRole          @default(user)
+  godGameAllowed   Boolean           @default(false)
+  membershipOrigin MembershipOrigin  @default(EXTERNAL)
+  status           AccountStatus     @default(active)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  wallet           Wallet?
+  reservations     Reservation[]
+  payments         Payment[]
+  walletTx         WalletTransaction[]
+  stats            PlayerStat[]
+  matchPlayers     MatchPlayer[]
+  badges           UserBadge[]
+  mvpAwards        MvpAward[]
+  posts            Article[]           @relation("PostAuthor")
+  godSessions      GodGameSession[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  hostedMatches    Match[]             @relation("MatchHost")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([tokenHash])
+}
+
+model Category {
+  id          Int          @id @default(autoincrement())
+  name        String
+  slug        String       @unique
+  description String       @default("")
+  image       String       @default("")
+  icon        String       @default("")
+  sortOrder   Int          @default(0)
+  active      Boolean      @default(true)
+  kind        CategoryKind @default(TABLE)
+  hasRoles    Boolean      @default(false)
+  seoTitle    String       @default("")
+  seoDesc     String       @default("")
+  events      Event[]
+  scenarios   Scenario[]
+  stats       PlayerStat[]
+  matches     Match[]
+  mvpAwards   MvpAward[]
+  posts       Article[]
+  eGames      ElectronicGame[]
+}
+
+model ElectronicGame {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique
+  description String   @default("")
+  cover       String   @default("")
+  platform    String   @default("")
+  categoryId  Int?
+  playersNote String   @default("")
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  category    Category? @relation(fields: [categoryId], references: [id])
+}
+
+model Scenario {
+  id          Int        @id @default(autoincrement())
+  name        String
+  slug        String     @unique
+  description String     @default("")
+  howto       String     @default("")
+  cover       String     @default("")
+  winConditions String   @default("")
+  dayNight    String     @default("")
+  notes       String     @default("")
+  minPlayers  Int        @default(4)
+  maxPlayers  Int        @default(24)
+  image       String     @default("")
+  published   Boolean    @default(true)
+  sortOrder   Int        @default(0)
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  gameRoles   GameRole[]
+  matches     Match[]
+  godSessions GodGameSession[]
+}
+
+model GameRole {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String   @default("")
+  side        String   @default("citizen")
+  symbol      String   @default("")
+  color       String   @default("")
+  nightWake   Boolean  @default(false)
+  wakeOrder   Int      @default(0)
+  image       String   @default("")
+  active      Boolean  @default(true)
+  scenarioId  Int
+  scenario    Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id            Int         @id @default(autoincrement())
+  title         String
+  description   String      @default("")
+  venue         String      @default("")
+  cover         String      @default("")
+  startsAt      DateTime
+  endsAt        DateTime?
+  bookingOpensAt DateTime?
+  bookingClosesAt DateTime?
+  capacity      Int         @default(12)
+  reservedCount Int         @default(0)
+  price         Int         @default(0)
+  onlineAmount  Int         @default(0)
+  venueAmount   Int         @default(0)
+  discountPrice Int         @default(0)
+  payType       PayType     @default(full)
+  audience      Audience    @default(mixed)
+  status        EventStatus @default(open)
+  venueNote     String      @default("")
+  categoryId    Int
+  category      Category    @relation(fields: [categoryId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  reservations  Reservation[]
+}
+
+model Reservation {
+  id            Int                @id @default(autoincrement())
+  userId        Int
+  eventId       Int
+  seats         Int                @default(1)
+  amount        Int                @default(0)
+  status        ReservationStatus  @default(pending)
+  paymentStatus PaymentStatus      @default(pending)
+  holdUntil     DateTime?
+  attendance    String             @default("")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event         Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  payments      Payment[]
+  @@index([eventId, status])
+  @@index([userId, eventId])
+}
+
+model Payment {
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  reservationId  Int?
+  amount         Int
+  kind           String        @default("reservation")
+  status         PaymentStatus @default(pending)
+  provider       String        @default("sandbox")
+  trackingCode   String        @unique
+  idempotencyKey String        @unique
+  meta           String        @default("")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reservation    Reservation?  @relation(fields: [reservationId], references: [id])
+}
+
+model Wallet {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WalletTransaction {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  amount         Int
+  kind           String
+  status         String   @default("done")
+  note           String   @default("")
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Match {
+  id               Int           @id @default(autoincrement())
+  categoryId       Int
+  scenarioId       Int?
+  title            String        @default("")
+  winner           String        @default("citizen")
+  scored           Boolean       @default(false)
+  hostId           Int?
+  godGameSessionId Int?          @unique
+  createdAt        DateTime      @default(now())
+  category         Category      @relation(fields: [categoryId], references: [id])
+  scenario         Scenario?     @relation(fields: [scenarioId], references: [id])
+  host             User?         @relation("MatchHost", fields: [hostId], references: [id])
+  players          MatchPlayer[]
+}
+
+model MatchPlayer {
+  id      Int    @id @default(autoincrement())
+  matchId Int
+  userId  Int
+  result  String
+  points  Int    @default(0)
+  roleName String @default("")
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PlayerStat {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  categoryId Int
+  points     Int      @default(0)
+  wins       Int      @default(0)
+  losses     Int      @default(0)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  @@unique([userId, categoryId])
+}
+
+model Badge {
+  id    Int         @id @default(autoincrement())
+  slug  String      @unique
+  name  String
+  hint  String      @default("")
+  color String      @default("#17A995")
+  image String      @default("")
+  users UserBadge[]
+}
+
+model UserBadge {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  badgeId      Int
+  level        Int      @default(1)
+  winsToward   Int      @default(0)
+  lastEarnedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge        Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  @@unique([userId, badgeId])
+}
+
+model MvpAward {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  categoryId Int?
+  title      String    @default("MVP")
+  period     String    @default("")
+  rank       Int       @default(1)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id])
+}
+
+model Article {
+  id         Int       @id @default(autoincrement())
+  title      String
+  slug       String    @unique
+  excerpt    String    @default("")
+  body       String    @default("")
+  cover      String    @default("")
+  kind       String    @default("guide")
+  published  Boolean   @default(false)
+  seoTitle   String    @default("")
+  seoDesc    String    @default("")
+  videoUrl   String    @default("")
+  authorId   Int
+  categoryId Int?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  author     User      @relation("PostAuthor", fields: [authorId], references: [id])
+  category   Category? @relation(fields: [categoryId], references: [id])
+}
+
+model GodGameSession {
+  id         Int       @id @default(autoincrement())
+  title      String
+  hostId     Int
+  scenarioId Int?
+  eventId    Int?
+  status     String    @default("lobby")
+  winner     String    @default("")
+  nightNum   Int       @default(0)
+  phase      String    @default("setup")
+  timerEnds  DateTime?
+  payload    String    @default("{}")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  host       User      @relation(fields: [hostId], references: [id])
+  scenario   Scenario? @relation(fields: [scenarioId], references: [id])
+  seats      GodGameSeat[]
+  actions    GodGameActionLog[]
+}
+
+model GodGameSeat {
+  id        Int            @id @default(autoincrement())
+  sessionId Int
+  no        Int
+  name      String
+  userId    Int?
+  roleName  String         @default("")
+  side      String         @default("")
+  dead      Boolean        @default(false)
+  kicked    Boolean        @default(false)
+  warnings  Int            @default(0)
+  nominee   Boolean        @default(false)
+  session   GodGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model GodGameActionLog {
+  id        Int            @id @default(autoincrement())
+  sessionId Int
+  actorId   Int?
+  action    String
+  meta      String         @default("")
+  createdAt DateTime       @default(now())
+  session   GodGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model HomepageSection {
+  id      Int     @id @default(autoincrement())
+  key     String  @unique
+  title   String
+  enabled Boolean @default(true)
+  sortOrder Int   @default(0)
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int?
+  action    String
+  entity    String
+  entityId  String   @default("")
+  meta      String   @default("")
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id])
+}
