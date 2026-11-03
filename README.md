@@ -22,3 +22,35 @@ npm run web    # :8080
 - عضویت: `ROKAD` | `EXTERNAL` — نشان PNG کنار نام فقط برای رکاد
 - پول: تومان صحیح
 - UI: فارسی RTL، تقویم جلالی، `Asia/Tehran`
+۱. Postgres — ساده‌ترین راه Docker Desktop:
+
+PowerShell
+
+cd C:\path\to\gamekad
+docker compose up -d
+بدون داکر: PostgreSQL را نصب کن، بعد در psql:
+
+SQL
+
+CREATE USER rokad WITH PASSWORD 'rokad' SUPERUSER;
+CREATE DATABASE rokad OWNER rokad;
+۲. یک‌بار اول (PowerShell):
+
+PowerShell
+
+cd C:\path\to\gamekad
+npm install
+cd apps\api
+npx prisma db push
+npx prisma db seed
+cd ..\..
+۳. هر روز دو پنجره:
+
+PowerShell
+
+cd C:\path\to\gamekad
+npm run api
+PowerShell
+
+cd C:\path\to\gamekad
+npm run web
